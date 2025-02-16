@@ -33,6 +33,16 @@ func CheckDependencies() error {
 	return nil
 }
 
+func CheckDependenciesOffice() bool {
+	// Check for msoffcrypto-tool in WSL.
+	cmd := exec.Command("wsl", "bash", "-l", "-c", "which msoffcrypto-tool")
+	out, err := cmd.CombinedOutput()
+	if err != nil || len(strings.TrimSpace(string(out))) == 0 {
+		return false
+	}
+	return true
+}
+
 // convertToLinuxPath converts a Windows path to a Linux path using wslpath.
 func convertToLinuxPath(winPath string) (string, error) {
 	wp := strings.Replace(winPath, `\`, `\\`, -1)
@@ -95,16 +105,9 @@ func CheckOffice(file string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	// fmt.Println("checking" + file)
-	// Check for msoffcrypto-tool in WSL.
-	cmd := exec.Command("wsl", "bash", "-l", "-c", "which msoffcrypto-tool")
-	out, err := cmd.CombinedOutput()
-	if err != nil || len(strings.TrimSpace(string(out))) == 0 {
-		officeCheckWarning = true
-		return false, nil
-	}
+
 	// Run msoffcrypto-tool in WSL using /dev/null as output.
-	cmd = exec.Command("wsl", "bash", "-l", "-c", fmt.Sprintf("msoffcrypto-tool '%s' -t -v", linuxPath))
+	cmd := exec.Command("wsl", "bash", "-l", "-c", fmt.Sprintf("msoffcrypto-tool '%s' -t -v", linuxPath))
 	output, err := cmd.CombinedOutput()
 	if !strings.Contains(strings.ToLower(string(output)), "not encrypted") && strings.Contains(strings.ToLower(string(output)), "encrypted") {
 		// fmt.Println("Gigi", strings.ToLower(string(output)))

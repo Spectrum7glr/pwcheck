@@ -1,12 +1,24 @@
 package pwcheck
 
 import (
+	"archive/zip"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
+)
+
+const (
+	// Bit 0 mask (traditional encryption)
+	bitEncryption = 1 << 0
+	// Bit 6 mask (strong encryption)
+	bitStrongEncryption = 1 << 6
 )
 
 // officeCheckWarning is set to true if any Office file was encountered but could not be checked.
@@ -23,12 +35,14 @@ func ExecuteCLI() {
 		paths = []string{"."}
 	}
 
-	if err := CheckDependencies(); err != nil {
-		log.Fatalf("Dependency check failed: %v", err)
-	}
+	// if err := CheckDependencies(); err != nil {
+	// 	log.Fatalf("Dependency check failed: %v", err)
+	// }
+
+	office := CheckDependenciesOffice()
 
 	for _, p := range paths {
-		if err := TraversePath(p); err != nil {
+		if err := TraversePath(p, office); err != nil {
 			log.Printf("Error traversing %s: %v", p, err)
 		}
 	}
@@ -43,7 +57,7 @@ func ExecuteCLI() {
 
 // TraversePath recursively walks the given basePath and, for each PDF, ZIP, or Office file found,
 // prints its path relative to basePath if it is detected as password‑protected.
-func TraversePath(basePath string) error {
+func TraversePath(basePath string, office bool) error {
 	absBase, err := filepath.Abs(basePath)
 	if err != nil {
 		return fmt.Errorf("error resolving base path: %v", err)
@@ -62,11 +76,21 @@ func TraversePath(basePath string) error {
 		var protected bool
 		switch ext {
 		case ".pdf":
-			protected, err = CheckPDF(path)
+			protected, err = CheckPDFGo(path)
 		case ".zip":
-			protected, err = CheckZIP(path)
+			protected, err = CheckZIPGo(path)
 		case ".docx", ".xlsx", ".pptx":
-			protected, err = CheckOffice(path)
+			if office {
+
+				protected, err = CheckOffice(path)
+
+			} else {
+				if !officeCheckWarning {
+					officeCheckWarning = true
+				}
+				return nil
+			}
+
 		default:
 			return nil
 		}
@@ -84,4 +108,35 @@ func TraversePath(basePath string) error {
 		}
 		return nil
 	})
+}
+
+func CheckPDFGo(file string) (bool, error) {
+	_, err := api.ReadContextFile(file)
+	if err != nil && errors.Is(err, pdfcpu.ErrWrongPassword) {
+		return true, nil
+	}
+
+	return false, nil
+
+}
+
+func CheckZIPGo(zipPath string) (bool, error) {
+	r, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return false, err
+	}
+	defer r.Close()
+
+	// Check each file inside the ZIP
+	for _, f := range r.File {
+		// If the low bit of Flags is set, the file is encrypted
+		if isEncrypted(f.Flags) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func isEncrypted(flags uint16) bool {
+	return (flags&bitEncryption) != 0 || (flags&bitStrongEncryption) != 0
 }

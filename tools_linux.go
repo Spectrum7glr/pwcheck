@@ -24,6 +24,13 @@ func CheckDependencies() error {
 	return nil
 }
 
+func CheckDependenciesOffice() bool {
+	if _, err := exec.LookPath("msoffcrypto-tool"); err != nil {
+		return false
+	}
+	return true
+}
+
 // CheckPDF runs qpdf on the file and returns true if it appears encrypted.
 func CheckPDF(file string) (bool, error) {
 	cmd := exec.Command("qpdf", "--is-encrypted", file)
@@ -60,12 +67,7 @@ func CheckZIP(file string) (bool, error) {
 // CheckOffice uses msoffcrypto-tool to determine if an Office file is password-protected.
 // If msoffcrypto-tool is not installed, it sets a warning flag and returns false.
 func CheckOffice(file string) (bool, error) {
-	// Check for msoffcrypto-tool; if missing, record warning.
 
-	if _, err := exec.LookPath("msoffcrypto-tool"); err != nil {
-		officeCheckWarning = true
-		return false, nil
-	}
 	// Run msoffcrypto-tool with /dev/null as output.
 	cmd := exec.Command("msoffcrypto-tool", file, "-t", "-v")
 	output, _ := cmd.CombinedOutput()
