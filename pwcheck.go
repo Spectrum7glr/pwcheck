@@ -79,7 +79,7 @@ func TraversePath(basePath string, office bool) error {
 			protected, err = CheckPDFGo(path)
 		case ".zip":
 			protected, err = CheckZIPGo(path)
-		case ".docx", ".xlsx", ".pptx":
+		case ".docx", ".xlsx", ".pptx", ".docm", ".xlsm", ".pptm", ".xls", ".doc":
 			if office {
 
 				protected, err = CheckOffice(path)
